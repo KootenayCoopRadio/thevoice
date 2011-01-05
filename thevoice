@@ -15,7 +15,7 @@ local @PLAYBOXES = grep (/\S/, split (/\n/, `cat $ETC/cart/playboxes`));
 
 @MPG123 = split (/\s+/, $MPG123);
 
-$stty = `stty -g`;
+chomp ($stty = `stty -g`);
 system "stty", "-echo", "-icanon", "eol", "\001";
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
