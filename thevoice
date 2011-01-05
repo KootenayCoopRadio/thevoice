@@ -218,6 +218,13 @@ while (1) {
 	elsif ($key eq "\x08" || $key eq "\x7F" || $key eq ".") {
 		if ($tracknumber =~ s/.$//) {
 			print "\b \b";
+		} elsif (@program) {
+		    pop @program_seconds_after;
+		    pop @program_track_time;
+		    pop @program;
+		    $tracknumber = pop @tracknumber;
+		    redraw_screen();
+		    print $tracknumber;
 		}
 	}
 	elsif ($key =~ /\d/) {
@@ -318,8 +325,19 @@ HERE
 	return ($BANNER . &cjlystandardtime);
 }
 
+sub redraw_screen {
+    print clear_screen();
+    for (my $i=0; $i<=$#program; $i++) {
+	my $file = $program[$i];
+	$file =~ s,.*/\d+\s*,,;
+	$file =~ s,\.(\w+)$,,;
+	printf "\r%-6s%7s   %-63.63s\n", $tracknumber[$i], $program_track_time[$i], $file;
+    }
+}
+
+
 sub cjlystandardtime {
-	my $displaytime = POSIX::strftime("cjly-fm 93.5 nelson 96.5 pilot point          %a   %b %e   %I:%M:%S %p", localtime);
+	my $displaytime = POSIX::strftime("cjly fm 93.5 nelson 96.5 crawford bay 107.5 new denver  %a %b %d  %I:%M:%S %p", localtime);
 	$displaytime =~ s/ 0/ /g;
 	$displaytime =~ s/0/o/g;
 	$displaytime =~ tr/A-Z/a-z/;
