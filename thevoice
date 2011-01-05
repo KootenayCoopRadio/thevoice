@@ -82,14 +82,16 @@ while (1) {
 		print "\n                About to start playing -- wait a moment";
 		local $child = fork();
 		if ($child > 0) {
-#print "$$ spawned $child for running esdplay/mpg123 processes\n";
 			$living_children{$child} = 1;
 		} elsif (defined ($child)) {
 		#	close STDIN;
 		#	close STDOUT;
 		#	close STDERR;
 			local $child;
+			$SIG{USR1} = sub { kill USR1, $child if $child };
 			if (0 == ($child = open (STDERR, "|-"))) {
+				$main::warning = '';
+				$SIG{USR1} = sub { $main::warning = "If you REALLY want to stop, and erase your list of tracks, dial 1234" };
 				unshift @program_seconds_after, 0;
 				$current_pgm_index = -1;
 				my $status = '';
@@ -152,6 +154,7 @@ while (1) {
 							     "$min:$sec",
 							     ($program[$#program] =~ /\(loop\)\./) ? "before I loop" : "");
 							$|=0;
+							$info .= "\n\n".$main::warning if $main::warning;
 							print (clear_screen() . $info);
 							$|=1;
 						}
@@ -248,12 +251,12 @@ while (1) {
 #print "[got $key, tn is $tracknumber]\n";
 	}
 	elsif ($key eq '-' || $key eq '/') {
-		if (%living_children) {
-			print "\rIf you REALLY want to stop, and erase your list of tracks, dial 1234\n";
-		} else {
-			stop();
-			clear_program();
-		}
+	    if (%living_children) {
+		kill 10, map ($_, keys %living_children);
+	    } else {
+		stop();
+		clear_program();
+	    }
 	}
 }
 system ('stty', $stty);
@@ -287,19 +290,19 @@ sub fadeout {
 sub clear_screen {
 	#printf ("clear_screen(): %s %s line %d", caller); sleep 3;
 
-	return ("\e[1`\e[11d\e[J" . &cjlystandardtime)
+	return ("\e[1`\e[10d\e[J" . &cjlystandardtime)
 	    if ($BANNER =~ /\S/ && time - $BANNERtime < 30);
 	$BANNERtime = time;
 
 	@banner = split("\n", <<HERE);
-+--------------  HELP  ---------------+
-|                                     |
-|  1. CLEAR                           |
-|  2. Type a track number, then ENTER |
-|  3. Another track number, and ENTER |
-|  4. Turn up the 'sponsor' fader     |
-|  5. PLAY                            |
-|_____________________________________|
+                                    
+ \e[4mhow to use:                       \e[0m 
+ 1. CLEAR                           
+ 2. Type a track number, then ENTER 
+ 3. Another track number, and ENTER 
+ 4. Turn up the 'sponsor' fader     
+ \e[4m5. PLAY                           \e[0m 
+                                    
 HERE
     ;
 	chomp (@todays_shows = `thevoice-todays-shows`);
@@ -307,7 +310,7 @@ HERE
 	my $leftside = (localtime)[3] % 2;
 	$BANNER = "\e[H\e[J";
 	for (@banner) {
-	    my $xtratext = sprintf ("%-39.39s", shift @todays_shows);
+	    my $xtratext = sprintf ("%-42.42s", shift @todays_shows);
 	    if ($leftside) {
 		s/$/ $xtratext/;
 	    } else {
@@ -318,8 +321,7 @@ HERE
 	}
 	
 	$BANNER .= <<HERE;
-TRACK#          NAME
-------          ---------------------------------------------------------------
+\e[7mTRACK#          NAME                                                           \e[0m
 HERE
     ;
 	return ($BANNER . &cjlystandardtime);
@@ -335,9 +337,8 @@ sub redraw_screen {
     }
 }
 
-
 sub cjlystandardtime {
-	my $displaytime = POSIX::strftime("cjly fm 93.5 nelson 96.5 crawford bay 107.5 new denver  %a %b %d  %I:%M:%S %p", localtime);
+	my $displaytime = POSIX::strftime("%a %b %d  %I:%M:%S %p", localtime);
 	$displaytime =~ s/ 0/ /g;
 	$displaytime =~ s/0/o/g;
 	$displaytime =~ tr/A-Z/a-z/;
