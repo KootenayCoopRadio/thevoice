@@ -1,0 +1,489 @@
+#!/usr/bin/perl
+
+$AUMIX=$ENV{'AUMIX'} || 'aumix';
+$MPG123=$ENV{'MPG123'} || 'mpg123';
+$WAVPLAY=$ENV{'WAVPLAY'} || 'esdplay';
+$ETC=$ENV{'ETC'} || '/etc';
+$KILLPROCS=$ENV{'KILLPROCS'} || 'mpg123 esdplay';
+$NOZEROES=$ENV{'NOZEROES'} || 0;
+$DEBUG=$ENV{'DEBUG'} || 0;
+
+local $SIG{INT} = sub { stop(); system ('stty', $stty); exit; };
+
+local $verbose = 1;
+local @PLAYBOXES = grep (/\S/, split (/\n/, `cat $ETC/cart/playboxes`));
+
+@MPG123 = split (/\s+/, $MPG123);
+
+$stty = `stty -g`;
+system "stty", "-echo", "-icanon", "eol", "\001";
+select STDERR; $| = 1;
+select STDOUT; $| = 1;
+print clear_screen();
+
+local @tracknumber;
+local %program;
+local @program_track_time;
+local @program_seconds_after;
+local @program;
+local $tracknumber = '';
+my %living_children;
+local $key;
+while (1) {
+	$timeout = 1.0;
+	$rin = $win = $ein = '';
+	vec($rin,fileno(STDIN),1) = 1;
+	vec($win,fileno(STDOUT),1) = 0;
+	$ein = $rin | $win;
+	($nfound, $timeleft) =
+	    select($rout=$rin, $wout=$win, $eout=$ein, $timeout);
+	if ($nfound) { $key = getc(STDIN); }
+	else { $key = ''; }
+
+	print &cjlystandardtime;
+
+	if (%living_children) {
+		my $kid;
+		do {
+			use POSIX ":sys_wait_h";
+			$kid = waitpid(-1,&WNOHANG);
+			delete $living_children{$kid};
+		} until $kid <= 0;
+		if (!%living_children) {
+			if ($key eq '') {
+				my $fmt_time = &timeofday();
+				print "\r      FINISHED  at $fmt_time                                                   ";
+				unlink "$ETC/cart/cron/0";
+			}
+			$clear_screen_next_key = 1;
+		}
+	}
+
+	if ($clear_screen_next_key && $key ne '') {
+		$clear_screen_next_key = 0;
+		print clear_screen();
+	}
+
+	&check_schedule();
+
+	if ($key eq "+") {
+		next if %living_children;
+		if (!%living_children && length($tracknumber)) {
+			&program_a_track;
+			print "\nPress PLAY to start " if $program[$#program] =~ /\(loop\)\./;
+		}
+	}
+	elsif ($key eq "\n" || $key eq "\r") {
+		&program_a_track if !%living_children && length($tracknumber);
+		next if ! @program;
+		$entered_stop_code = '';
+		$tracknumber = '';
+		print "\n";
+		print "\n                About to start playing -- wait a moment";
+		local $child = fork();
+		if ($child > 0) {
+#print "$$ spawned $child for running esdplay/mpg123 processes\n";
+			$living_children{$child} = 1;
+		} elsif (defined ($child)) {
+		#	close STDIN;
+		#	close STDOUT;
+		#	close STDERR;
+			local $child;
+			if (0 == ($child = open (STDERR, "|-"))) {
+				unshift @program_seconds_after, 0;
+				$current_pgm_index = -1;
+				my $status = '';
+				while (defined ($key = getc STDIN)) {
+					$status .= $key;
+					if ($key eq "\n") {
+						if ($status =~ /Audio: /) {
+							shift @program_seconds_after;
+							++$current_pgm_index;
+						}
+						$status = '';
+						next;
+					}
+					next if $program_seconds_after[0] < 0;
+					if ($key eq "\r") {
+						my ($framenumber) = $status =~ /frame\#\s*(\d+)/i;
+						if (defined ($framenumber)) {
+							&save_program (undef, $framenumber);
+						}
+
+						my ($min, $sec, $hsec) = $status =~ /\[(\d+):(\d+)\.(\d+)\]/;
+						if (defined ($sec)) {
+							$sec ++;
+							my $this_remain = sprintf ("%d:%02d", int($min+$sec/60), $sec%60);
+							$this_remain =~ s/^0:/ :/;
+							$sec += $hsec / 100;
+							$sec += $program_seconds_after[0];
+							$min += int($sec/60);
+							$sec = sprintf ("%02d", $sec % 60);
+							$min =~ s/^0$/ /;
+							if ($NOZEROES) {
+								for ($min, $sec) {
+									s/0/O/g;
+								}
+							}
+							#######################################
+							my $other_track;
+							my $pgm_index = -1;
+							my $info;
+							for $other_track (@program) {
+								++$pgm_index;
+								my $trackname = $other_track;
+								$trackname =~ s,.*/(\d+)\s+(.*?)(\.mp[23]|\.wav)?$,$2,i;
+								my $other_remain = '';
+								if ($current_pgm_index < $pgm_index) {
+									$other_remain = $program_track_time[$pgm_index];
+								} elsif ($current_pgm_index == $pgm_index) {
+									$other_remain = "$this_remain";
+								}
+								$info .= sprintf
+								    ("%-5d%9s  %-63.63s\n",
+								     $tracknumber[$pgm_index],
+								     $other_remain,
+								     $trackname);
+							}
+							$info .= "\n";
+							#######################################
+							$info .= sprintf
+							    (" -> %10s  <- total time remaining %-30s          \e[A",
+							     "$min:$sec",
+							     ($program[$#program] =~ /\(loop\)\./) ? "before I loop" : "");
+							$|=0;
+							print (clear_screen() . $info);
+							$|=1;
+						}
+						$status = '';
+					}
+				}
+				exit 0;
+			}
+			$SIG{HUP} = sub {
+#print "$$ got sighup; I'm taking my child $child with me\n";
+				kill 1, $child if defined ($child);
+				exit 0;
+			};
+#print "$$ spawned $child for displaying time-remaining\n";
+
+			my $this_pgm_index = -1;
+			my $looping = 0;
+			for (@program) {
+				++$this_pgm_index;
+				select (undef, undef, undef, 1.1)
+				    if 0 < $this_pgm_index && !$looping;
+
+				&save_program ($this_pgm_index);
+
+				$looping = 1 if /\(loop\)\./;
+				if (/\(.*volume=(\d+).*\)/) {
+				    system ($AUMIX, "-v", 100, "-w", $1);
+				} else {
+				    system ($AUMIX, qw(-v 70 -w 100));
+				}
+
+				if (/\.mp[23]$/i) {
+					$skip_frames_first_track += 0;
+					print "[skipping $skip_frames_first_track frames]\n" if $DEBUG && $skip_frames_first_track > 0;
+					system (@MPG123, "-k", $skip_frames_first_track, "-v", "-q", $_);
+					$skip_frames_first_track = 0;
+					$status = $? / 256;
+					print "(status = $status)\n" if $status;
+				} elsif (/\.wav$/i) {
+					system $WAVPLAY, $_;
+				} elsif (-r "$_/current.mp3") {
+					system (qq{mp3cat "$_" - | @MPG123 -v -q -});
+				} else {
+					print STDERR
+					    "Aaah! This isn't a WAV or MP3: $_\n";
+					next;
+				}
+				if ($looping) {
+				    pop @program_seconds_after;
+				    pop @program;
+				    pop @program_track_time;
+				    $tracknumber = pop @tracknumber;
+				    delete $program{$tracknumber};
+				    &program_a_track;
+				    --$this_pgm_index;
+				    $_ = $program[-1];
+				    redo;
+				}
+			}
+			exit 0;
+		}
+		&clear_program;
+	}
+	elsif ($key eq "\x08" || $key eq "\x7F" || $key eq ".") {
+		if ($tracknumber =~ s/.$//) {
+			print "\b \b";
+		}
+	}
+	elsif ($key =~ /\d/) {
+		if (%living_children) {
+			$entered_stop_code =~ s/^.*(\d{3})$/$1/;
+			$entered_stop_code .= $key;
+			if ($entered_stop_code eq '1234') {
+				stop();
+				print "\n\nWait 2 seconds while I compose myself...";
+				sleep 2;
+				&clear_program;
+			}
+			next;
+		}
+		if ($#program >= 0 && $program[$#program] =~ /\(loop\)\./) {
+			print "\rYou can't program anything after a looping track.  You can only PLAY or CLEAR.";
+			next;
+		}
+		print $key;
+		$tracknumber = "$tracknumber$key";
+#print "[got $key, tn is $tracknumber]\n";
+	}
+	elsif ($key eq '-' || $key eq '/') {
+		if (%living_children) {
+			print "\rIf you REALLY want to stop, and erase your list of tracks, dial 1234\n";
+		} else {
+			stop();
+			clear_program();
+		}
+	}
+}
+system ('stty', $stty);
+
+sub stop {
+	kill 1, map ($_, keys %living_children);
+	%living_children = ();
+	system "killall $KILLPROCS 2>/dev/null";
+}
+
+sub clear_program {
+	unlink "$ETC/cart/cron/0";
+	$skip_frames_first_track = 0;
+	@program_seconds_after = ();
+	@program_track_time = ();
+	@program = ();
+	%program = ();
+	@tracknumber = ();
+	$tracknumber = '';
+	print clear_screen();
+}
+
+sub fadeout {
+	$volume = (split(' ',`$AUMIX -v q`))[-1];
+	for ($v = $volume; $v > 0; $v--) {
+		system ($AUMIX, '-v', $v);
+		select (undef, undef, undef, 0.1);
+	}
+}
+
+sub clear_screen {
+	#printf ("clear_screen(): %s %s line %d", caller); sleep 3;
+
+	return ("\e[1`\e[11d\e[J" . &cjlystandardtime)
+	    if ($BANNER =~ /\S/ && time - $BANNERtime < 30);
+	$BANNERtime = time;
+
+	@banner = split("\n", <<HERE);
++--------------  HELP  ---------------+
+|                                     |
+|  1. CLEAR                           |
+|  2. Type a track number, then ENTER |
+|  3. Another track number, and ENTER |
+|  4. Turn up the 'sponsor' fader     |
+|  5. PLAY                            |
+|_____________________________________|
+HERE
+    ;
+	chomp (@todays_shows = `thevoice-todays-shows`);
+	splice (@todays_shows, 1, 0, (undef)) if @todays_shows < @banner;
+	my $leftside = (localtime)[3] % 2;
+	$BANNER = "\e[H\e[J";
+	for (@banner) {
+	    my $xtratext = sprintf ("%-39.39s", shift @todays_shows);
+	    if ($leftside) {
+		s/$/ $xtratext/;
+	    } else {
+		s/^/$xtratext /;
+	    }
+	    $BANNER .= $_;
+	    $BANNER .= "\n";
+	}
+	
+	$BANNER .= <<HERE;
+TRACK#          NAME
+------          ---------------------------------------------------------------
+HERE
+    ;
+	return ($BANNER . &cjlystandardtime);
+}
+
+sub cjlystandardtime {
+	my $displaytime = POSIX::strftime("cjly-fm 93.5 nelson 96.5 pilot point          %a   %b %e   %I:%M:%S %p", localtime);
+	$displaytime =~ s/ 0/ /g;
+	$displaytime =~ s/0/o/g;
+	$displaytime =~ tr/A-Z/a-z/;
+	$row = ((localtime)[3]%2) ? 25 : 24;
+	
+	my $out = '';
+	foreach (24, 25) {
+		$out .= sprintf ("%s%78.78s%s",
+				 "\e7\e[1`\e[${_}d",
+				 ($row == $_) ? $displaytime : '',
+				 "\e8");
+	}
+	return $out;
+}
+
+sub program_a_track {
+	my @matches;
+	my $playbox_dir, $playbox;
+	foreach $playbox (@PLAYBOXES) {
+		my ($playbox_dir, $prefix) = split (/=/, $playbox, 2);
+		opendir PLAYBOX, $playbox_dir;
+		while (defined ($_ = readdir PLAYBOX)) {
+			next unless /^\d/;
+			my $filename = "$playbox_dir/$_";
+			s/^/$prefix/;
+			next unless (/^$tracknumber\D/ &&
+						 (/\.(mp[23]|wav)$/i || -r "$filename/current.mp3"));
+			push @matches, $filename;
+		}
+		closedir PLAYBOX;
+	}
+	if (!@matches) {
+		print "\r                -- track $tracknumber doesn't exist; i'll ignore that --       \n";
+	}
+# 	elsif (exists $program{$tracknumber}) {
+# 		print "\r                -- you already programmed track $tracknumber; i'll ignore that --      \n";
+# 	}
+	else {
+		my $which_rand = int(rand(1+$#matches));
+		if (exists($last_rand{$tracknumber})
+		    && $last_rand{$tracknumber} == $which_rand) {
+			$which_rand = ($which_rand + 1) % @matches;
+		}
+		$last_rand{$tracknumber} = $which_rand;
+		my $selected_file = $matches[$which_rand];
+
+		local $/ = undef;
+		my $time = $selected_file =~ /\.mp[23]$/i ? `@MPG123 -t -v -q -n 1 "$selected_file" 2>&1` : '';
+		if ($time =~ /.*\[(\d+):(\d+)\.(\d+)\]/) {
+			$time = sprintf ("%d:%02d", $1, $2);
+			for $i (0..$#program_seconds_after) {
+				next if $program_seconds_after[$i] < 0;
+				$program_seconds_after[$i] += $1 * 60 + $2 + $3 / 100;
+			}
+		} else {
+			$time = "";
+			for $i (0..$#program_seconds_after) {
+				$program_seconds_after[$i] = -1;
+			}
+		}
+		push @program_seconds_after, 0;
+		push @program_track_time, $time;
+		push @program, $selected_file;
+		push @tracknumber, $tracknumber;
+		$program{$tracknumber} = 1;
+
+		$selected_file =~ s,.*/\d+\s*,,;
+		$selected_file =~ s,\.(\w+)$,,;
+		printf "\r%-6s%7s   %-63.63s\n", $tracknumber, $time, $selected_file;
+	}
+	$tracknumber = '';
+	$skip_frames_first_track = 0;
+}
+
+sub save_program {
+	my ($this_pgm_index, $skip_frames) = @_;
+	if (defined ($this_pgm_index)) {
+		$saveprogram = join(",",@tracknumber[$this_pgm_index..$#tracknumber]);
+	} else {
+		$saveprogram = readlink("$ETC/cart/cron/0");
+		$saveprogram =~ s/-\d+//;
+		return if $saveprogram !~ /\d/;
+	}
+	if($skip_frames > 200) {
+		$skip_frames -= 200;
+		$saveprogram =~ s/^(\d+)/$1-$skip_frames/;
+	}
+	unlink "$ETC/cart/cron/0tmp";
+	if (symlink ($saveprogram,
+		     "$ETC/cart/cron/0tmp")) {
+		rename "$ETC/cart/cron/0tmp", "$ETC/cart/cron/0";
+	} else {
+		print "Tell the computer expert to make /etc/cart/cron/ writeable, please.\r";
+		sleep 2;
+	}
+}
+
+sub timeofday {
+	my @time = localtime;
+	my $hour = $time[2];
+	my $ampm = 'am';
+	if ($hour >= 12) {
+		$hour = $hour % 12;
+		$ampm = 'pm';
+	}
+	if ($hour == 0) {
+		$hour = 12;
+	}
+	local $_ = sprintf ("%2d:%02d %s", $hour, $time[1], $ampm);
+	if ($NOZEROES) { s/0/O/g }
+	$_;
+}
+
+sub check_schedule {
+
+	# If $ETC/cart/cron/ contains a symlink called "99123", which
+	# links to a (non-existent) file called "14,15,16", then
+	# tracks 14, 15, and 16 will be played at 99123 seconds after
+	# the UNIX epoch.  If a program is already playing at that
+	# time, it will be stopped.
+
+	my $check_for_interruption = !defined($checked_schedule_yet);
+	$checked_schedule_yet = 1;
+
+	return if !-w "$ETC/cart/cron/.";
+	opendir SCHED, "$ETC/cart/cron";
+
+	while ($_ = readdir SCHED) {
+		$thelink = "$ETC/cart/cron/$_";
+		if (-l $thelink) {
+			if(/^\d+$/
+			   &&
+			   ((!$_ && $check_for_interruption)
+			    ||
+			    $_ >= time-60)
+			   &&
+			   $_ <= time) {
+				my $tracknumbers = readlink $thelink;
+				if (%living_children) {
+					fadeout();
+				}
+				stop();
+				clear_program();
+				print "Resuming interrupted program.\n\n"
+				    if !$_;
+				print "Wait 3 seconds...";
+				sleep 3;
+				print "\n";
+				my $skip_frames;
+				if ($tracknumbers =~ s/-(\d+)//) {
+					$skip_frames = $1;
+				} else {
+					$skip_frames = 0;
+				}
+				foreach $tracknumber (split(/[ ,]+/, $tracknumbers)) {
+					print $tracknumber;
+					program_a_track();
+				}
+				$skip_frames_first_track = $skip_frames;
+				unlink $thelink;
+				$key = "\r";
+			}
+		}
+	}
+}
+
+1;
