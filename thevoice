@@ -96,7 +96,7 @@ while (1) {
 				while (defined ($key = getc STDIN)) {
 					$status .= $key;
 					if ($key eq "\n") {
-						if ($status =~ /Audio: /) {
+						if ($status =~ /^Playing /) {
 							shift @program_seconds_after;
 							++$current_pgm_index;
 						}
@@ -186,14 +186,14 @@ while (1) {
 				if (/\.mp[23]$/i) {
 					$skip_frames_first_track += 0;
 					print "[skipping $skip_frames_first_track frames]\n" if $DEBUG && $skip_frames_first_track > 0;
-					system (@MPG123, "-k", $skip_frames_first_track, "-v", "-q", $_);
+					system (@MPG123, "-k", $skip_frames_first_track, "-v", $_);
 					$skip_frames_first_track = 0;
 					$status = $? / 256;
 					print "(status = $status)\n" if $status;
 				} elsif (/\.wav$/i) {
 					system $WAVPLAY, $_;
 				} elsif (-r "$_/current.mp3") {
-					system (qq{mp3cat "$_" - | @MPG123 -v -q -});
+					system (qq{mp3cat "$_" - | @MPG123 -v -});
 				} else {
 					print STDERR
 					    "Aaah! This isn't a WAV or MP3: $_\n";
@@ -385,7 +385,7 @@ sub program_a_track {
 		my $selected_file = $matches[$which_rand];
 
 		local $/ = undef;
-		my $time = $selected_file =~ /\.mp[23]$/i ? `@MPG123 -t -v -q -n 1 "$selected_file" 2>&1` : '';
+		my $time = $selected_file =~ /\.mp[23]$/i ? `@MPG123 -t -v -n 1 "$selected_file" 2>&1` : '';
 		if ($time =~ /.*\[(\d+):(\d+)\.(\d+)\]/) {
 			$time = sprintf ("%d:%02d", $1, $2);
 			for $i (0..$#program_seconds_after) {
