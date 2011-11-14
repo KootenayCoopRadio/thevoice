@@ -197,6 +197,8 @@ while (1) {
 					system $WAVPLAY, $_;
 				} elsif (-r "$_/current.mp3") {
 					system (qq{mp3cat "$_" - | @MPG123 -v -});
+				} elsif (-l "$_" && readlink($_) =~ /^https?\:\/\//) {
+					system (qq{@MPG123 -v }.readlink($_));
 				} else {
 					print STDERR
 					    "Aaah! This isn't a WAV or MP3: $_\n";
@@ -365,7 +367,9 @@ sub program_a_track {
 			my $filename = "$playbox_dir/$_";
 			s/^/$prefix/;
 			next unless (/^$tracknumber\D/ &&
-						 (/\.(mp[23]|wav)$/i || -r "$filename/current.mp3"));
+				     (/\.(mp[23]|wav)$/i ||
+				      -r "$filename/current.mp3" ||
+				      (-l $filename && readlink($filename) =~ /^https?\:\/\//)));
 			push @matches, $filename;
 		}
 		closedir PLAYBOX;
