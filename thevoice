@@ -197,7 +197,7 @@ while (1) {
 					system $WAVPLAY, $_;
 				} elsif (-r "$_/current.mp3") {
 					system (qq{mp3cat "$_" - | @MPG123 -v -});
-				} elsif (-l "$_" && readlink($_) =~ /^https?\:\/\//) {
+				} elsif (-l ($_) && readlink($_) =~ /^https?\:\/\//) {
 					system (qq{@MPG123 -v }.readlink($_));
 				} else {
 					print STDERR
