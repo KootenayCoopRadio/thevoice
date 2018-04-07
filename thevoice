@@ -392,11 +392,13 @@ sub program_a_track {
 
 		local $/ = undef;
 		my $time = $selected_file =~ /\.mp[23]$/i ? `@MPG123 -t -v -n 1 "$selected_file" 2>&1` : '';
-		if ($time =~ /.*\[(\d+):(\d+)\.(\d+)\]/) {
-			$time = sprintf ("%d:%02d", $1, $2);
+		if ($time =~ /.*\[(?:(\d+):)?(\d+):(\d+)(?:\.(\d+))?\]/) {
+			my ($hr, $min, $sec, $hsec) = ($1, $2, $3, $4);
+			$min += $hr * 60;
+			$time = sprintf ("%d:%02d", $min, $sec);
 			for $i (0..$#program_seconds_after) {
 				next if $program_seconds_after[$i] < 0;
-				$program_seconds_after[$i] += $1 * 60 + $2 + $3 / 100;
+				$program_seconds_after[$i] += $min * 60 + $sec + $hsec / 100;
 			}
 		} else {
 			$time = "";
