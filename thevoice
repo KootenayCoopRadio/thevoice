@@ -12,6 +12,8 @@ local $SIG{INT} = sub { stop(); system ('stty', $stty); exit; };
 
 local $verbose = 1;
 local @PLAYBOXES = grep (/\S/, split (/\n/, `cat $ETC/cart/playboxes`));
+local ($screen_height) = split(" ", `stty size`);
+local ($screen_avail) = $screen_height - 12;
 
 @MPG123 = split (/\s+/, $MPG123);
 
@@ -52,7 +54,7 @@ while (1) {
 	if (!%living_children) {
 	    if ($key eq '') {
 		my $fmt_time = &timeofday();
-		print "\r      FINISHED  at $fmt_time                                                   ";
+		print "\r\n      FINISHED  at $fmt_time                                                   ";
 		unlink "$ETC/cart/cron/0";
 	    }
 	    $clear_screen_next_key = 1;
@@ -116,6 +118,10 @@ while (1) {
 			if (defined ($sec)) {
 			    $min += 60 * $hr;
 			    $sec ++;
+			    if ($sec >= 60) {
+				$min ++;
+				$sec -= 60;
+			    }
 			    my $this_remain = sprintf ("%d:%02d", int($min+$sec/60), $sec%60);
 			    $this_remain =~ s/^0:/ :/;
 			    $sec += $hsec / 100;
@@ -129,12 +135,13 @@ while (1) {
 				}
 			    }
 			    #######################################
-			    my $other_track;
-			    my $pgm_index = -1;
-			    my $info;
-			    for $other_track (@program) {
-				++$pgm_index;
-				my $trackname = $other_track;
+			    my $info = '';
+			    my $pgm_index = $#program + 2 - $screen_avail;
+			    $pgm_index = 0 if $pgm_index < 0;
+			    $pgm_index = $current_pgm_index if $pgm_index > $current_pgm_index;
+			    my $max_pgm_index = $pgm_index + $screen_avail - 2;
+			    for (; $pgm_index<=$#program && $pgm_index<=$max_pgm_index; $pgm_index++) {
+				my $trackname = $program[$pgm_index];
 				$trackname =~ s,.*/(\d+)\s+(.*?)(\.mp[23]|\.wav)?$,$2,i;
 				my $other_remain = '';
 				if ($current_pgm_index < $pgm_index) {
@@ -148,6 +155,7 @@ while (1) {
 				     $other_remain,
 				     $trackname);
 			    }
+			    $info .= sprintf("%14s  [%d more]", "", 1 + $#program - $pgm_index) if $pgm_index <= $#program;
 			    $info .= "\n";
 			    #######################################
 			    $info .= sprintf
@@ -244,7 +252,7 @@ while (1) {
 	    next;
 	}
 	if ($#program >= 0 && $program[$#program] =~ /\(loop\)\./) {
-	    print "\rYou can't program anything after a looping track.  You can only PLAY or CLEAR.";
+	    print "\r  You can't program anything after a looping track. You can only PLAY or CLEAR.\r";
 	    next;
 	}
 	print $key;
@@ -292,17 +300,15 @@ sub clear_screen {
 	if ($BANNER =~ /\S/ && time - $BANNERtime < 30);
     $BANNERtime = time;
 
-    @banner = split("\n", <<HERE
-                                    
- \e[4mhow to use:                       \e[0m 
+    @banner = split("\n", "
+ \e[4mhow to use:                       \e[0m
  1. CLEAR                           
  2. Type a track number, then ENTER 
  3. Another track number, and ENTER 
  4. Turn up the 'sponsor' fader     
  \e[4m5. PLAY                           \e[0m 
                                     
-HERE
-    );
+");
     chomp (@todays_shows = `thevoice-todays-shows`);
     splice (@todays_shows, 1, 0, (undef)) if @todays_shows < @banner;
     my $leftside = (localtime)[3] % 2;
@@ -327,7 +333,9 @@ HERE
 
 sub redraw_screen {
     print clear_screen();
-    for (my $i=0; $i<=$#program; $i++) {
+    my $i = $#program + 1 - $screen_avail;
+    $i = 0 if $i < 0;
+    for (; $i<=$#program; $i++) {
 	my $file = $program[$i];
 	$file =~ s,.*/\d+\s*,,;
 	$file =~ s,\.(\w+)$,,;
@@ -340,10 +348,10 @@ sub cjlystandardtime {
     $displaytime =~ s/ 0/ /g;
     $displaytime =~ s/0/o/g;
     $displaytime =~ tr/A-Z/a-z/;
-    $row = ((localtime)[3]%2) ? 25 : 24;
+    $row = $screen_height - ((localtime)[1]%2);
 	
     my $out = '';
-    foreach (24, 25) {
+    foreach ($screen_height-1, $screen_height) {
 	$out .= sprintf ("%s%78.78s%s",
 			 "\e7\e[1`\e[${_}d",
 			 ($row == $_) ? $displaytime : '',
@@ -371,7 +379,7 @@ sub program_a_track {
 	closedir PLAYBOX;
     }
     if (!@matches) {
-	print "\r                -- track $tracknumber doesn't exist; i'll ignore that --       \n";
+	print "\r                -- track $tracknumber doesn't exist; i'll ignore that --       \r";
     }
     else {
 	my $which_rand = int(rand(1+$#matches));
@@ -387,6 +395,11 @@ sub program_a_track {
 	if ($time =~ /.*\[(?:(\d+):)?(\d+):(\d+)(?:\.(\d+))?\]/) {
 	    my ($hr, $min, $sec, $hsec) = ($1, $2, $3, $4);
 	    $min += $hr * 60;
+	    $sec ++;
+	    if ($sec >= 60) {
+		$min ++;
+		$sec -= 60;
+	    }
 	    $time = sprintf ("%d:%02d", $min, $sec);
 	    for $i (0..$#program_seconds_after) {
 		next if $program_seconds_after[$i] < 0;
@@ -406,7 +419,7 @@ sub program_a_track {
 
 	$selected_file =~ s,.*/\d+\s*,,;
 	$selected_file =~ s,\.(\w+)$,,;
-	printf "\r%-6s%7s   %-63.63s\n", $tracknumber, $time, $selected_file;
+	redraw_screen();
     }
     $tracknumber = '';
     $skip_frames_first_track = 0;
@@ -430,7 +443,7 @@ sub save_program {
 		 "$ETC/cart/cron/0tmp")) {
 	rename "$ETC/cart/cron/0tmp", "$ETC/cart/cron/0";
     } else {
-	print "Tell the computer expert to make /etc/cart/cron/ writeable, please.\r";
+	print "\rTell the computer expert to make $ETC/cart/cron/ writeable, please.\r";
 	sleep 2;
     }
 }
