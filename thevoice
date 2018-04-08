@@ -137,8 +137,8 @@ while (1) {
 			    #######################################
 			    my $info = '';
 			    my $pgm_index = $#program + 2 - $screen_avail;
+			    $pgm_index = $current_pgm_index - 1 if $pgm_index > $current_pgm_index - 1;
 			    $pgm_index = 0 if $pgm_index < 0;
-			    $pgm_index = $current_pgm_index if $pgm_index > $current_pgm_index;
 			    my $max_pgm_index = $pgm_index + $screen_avail - 2;
 			    for (; $pgm_index<=$#program && $pgm_index<=$max_pgm_index; $pgm_index++) {
 				my $trackname = $program[$pgm_index];
