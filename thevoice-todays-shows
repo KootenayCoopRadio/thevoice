@@ -1,0 +1,27 @@
+#!/usr/bin/perl
+
+$ETC=$ENV{'ETC'} || '/etc';
+local @PLAYBOXES = grep (/\S/, split (/\n/, `cat $ETC/cart/playboxes`));
+
+($s, $m, $h, $thisday, $thismonth) = localtime;
+$am = "am";
+$am = "pm" if $h >= 12;
+$h -= 12 if $h > 12;
+$m = "0$h" if $m < 10;
+local @month_abbrev = qw(jan feb mar apr may jun jul aug sep oct nov dec);
+
+foreach $playbox (@PLAYBOXES) {
+    my ($playbox_dir, $prefix) = split (/=/, $playbox, 2);
+    opendir PLAYBOX, $playbox_dir;
+    while (defined ($_ = readdir PLAYBOX)) {
+        next unless /^\d/;
+        my $filename = "$playbox_dir/$_";
+        s/^/$prefix/;
+        next unless /^(\d+)\D/ && s/\.(mp3|wav)$//i;
+        next unless /($month_abbrev[$thismonth])\S*(\s*\d+\s*and)?\s*$thisday\b/i;
+        push @today, $_;
+    }
+    closedir PLAYBOX;
+}
+print ("Tracks for ", ucfirst $month_abbrev[$thismonth], " $thisday [as of $h:$m $am]\n");
+print map ("$_\n", sort @today);
