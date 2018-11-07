@@ -114,7 +114,7 @@ while (1) {
 			    &save_program (undef, $framenumber);
 			}
 
-			my ($hr, $min, $sec, $hsec) = $status =~ /\[(?:(\d+):)?(\d+):(\d+)(?:\.(\d+))?\]/;
+			my ($hr, $min, $sec, $hsec) = $status =~ /[\[\+](?:(\d+):)?(\d+):(\d+)(?:\.(\d+))?[\]\s]/;
 			if (defined ($sec)) {
 			    $min += 60 * $hr;
 			    $sec ++;
@@ -392,7 +392,7 @@ sub program_a_track {
 
 	local $/ = undef;
 	my $time = $selected_file =~ /\.mp[23]$/i ? `@MPG123 -t -v -n 1 "$selected_file" 2>&1` : '';
-	if ($time =~ /.*\[(?:(\d+):)?(\d+):(\d+)(?:\.(\d+))?\]/) {
+	if ($time =~ /.*[\[\+](?:(\d+):)?(\d+):(\d+)(?:\.(\d+))?[\]\s]/) {
 	    my ($hr, $min, $sec, $hsec) = ($1, $2, $3, $4);
 	    $min += $hr * 60;
 	    $sec ++;
