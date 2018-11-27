@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+# -*- indent-tabs-mode: t; -*-
 
 $AUMIX=$ENV{'AUMIX'} || 'aumix';
 $MPG123=$ENV{'MPG123'} || 'mpg123';
@@ -24,7 +25,6 @@ select STDOUT; $| = 1;
 print clear_screen();
 
 local @tracknumber;
-local %program;
 local @program_track_time;
 local @program_seconds_after;
 local @program;
@@ -71,15 +71,16 @@ while (1) {
     if ($key eq "+") {
 	next if %living_children;
 	if (!%living_children && length($tracknumber)) {
-	    &program_a_track;
+	    &program_a_track($tracknumber);
+	    $tracknumber = '';
 	    print "\nPress PLAY to start " if $program[$#program] =~ /\(loop\)\./;
 	}
     }
     elsif ($key eq "\n" || $key eq "\r") {
-	&program_a_track if !%living_children && length($tracknumber);
+	&program_a_track($tracknumber) if !%living_children && length($tracknumber);
+	$tracknumber = '';
 	next if ! @program;
 	$entered_stop_code = '';
-	$tracknumber = '';
 	print "\n";
 	print "\n                About to start playing -- wait a moment";
 	local $child = fork();
@@ -151,7 +152,7 @@ while (1) {
 				}
 				$info .= sprintf
 				    ("%-5d%9s  %-63.63s\n",
-				     $tracknumber[$pgm_index],
+				     ($tracknumber[$pgm_index] =~ /(\d+)/),
 				     $other_remain,
 				     $trackname);
 			    }
@@ -198,9 +199,9 @@ while (1) {
 		    print "[skipping $skip_frames_first_track frames]\n" if $DEBUG && $skip_frames_first_track > 0;
 		    system (@MPG123, "-k", $skip_frames_first_track, "-v", $_);
 		    $skip_frames_first_track = 0;
-		    $status = $? / 256;
-					print "(status = $status)\n" if $status;
-				} elsif (/\.wav$/i) {
+		    $status = $? / 256; #/;#emacs-parse-fail#
+		    print "(status = $status)\n" if $status;
+		} elsif (/\.wav$/i) {
 		    system $WAVPLAY, $_;
 		} elsif (-r "$_/current.mp3") {
 		    system (qq{mp3cat "$_" - | @MPG123 -v -});
@@ -216,8 +217,8 @@ while (1) {
 		    pop @program;
 		    pop @program_track_time;
 		    $tracknumber = pop @tracknumber;
-		    delete $program{$tracknumber};
-		    &program_a_track;
+		    &program_a_track(($tracknumber =~ /(\d+)/));
+		    $tracknumber = '';
 		    --$this_pgm_index;
 		    $_ = $program[-1];
 		    redo;
@@ -234,7 +235,7 @@ while (1) {
 	    pop @program_seconds_after;
 	    pop @program_track_time;
 	    pop @program;
-	    $tracknumber = pop @tracknumber;
+	    ($tracknumber) = (pop(@tracknumber) =~ /(\d+)/);
 	    redraw_screen();
 	    print $tracknumber;
 	}
@@ -281,7 +282,6 @@ sub clear_program {
     @program_seconds_after = ();
     @program_track_time = ();
     @program = ();
-    %program = ();
     @tracknumber = ();
     $tracknumber = '';
     print clear_screen();
@@ -323,7 +323,7 @@ sub clear_screen {
 	$BANNER .= $_;
 	$BANNER .= "\n";
     }
-	
+
     $BANNER .= <<HERE
 \e[7mTRACK#          NAME                                                           \e[0m
 HERE
@@ -339,7 +339,7 @@ sub redraw_screen {
 	my $file = $program[$i];
 	$file =~ s,.*/\d+\s*,,;
 	$file =~ s,\.(\w+)$,,;
-	printf "\r%-6s%7s   %-63.63s\n", $tracknumber[$i], $program_track_time[$i], $file;
+	printf "\r%-6s%7s   %-63.63s\n", ($tracknumber[$i] =~ /(\d+)/), $program_track_time[$i], $file;
     }
 }
 
@@ -349,7 +349,7 @@ sub cjlystandardtime {
     $displaytime =~ s/0/o/g;
     $displaytime =~ tr/A-Z/a-z/;
     $row = $screen_height - ((localtime)[1]%2);
-	
+
     my $out = '';
     foreach ($screen_height-1, $screen_height) {
 	$out .= sprintf ("%s%78.78s%s",
@@ -361,8 +361,20 @@ sub cjlystandardtime {
 }
 
 sub program_a_track {
+    my $tracknumber = shift;
     my @matches;
     my $playbox_dir, $playbox;
+    my $trackbytes, $trackmtime, $trackinode;
+    my $tracknum = $tracknumber;
+    if ($tracknum =~ s/b(\d+)//) {
+        $trackbytes = $1;
+    }
+    if ($tracknum =~ s/m(\d+)//) {
+        $trackmtime = $1;
+    }
+    if ($tracknum =~ s/i(\d+)//) {
+        $trackinode = $1;
+    }
     foreach $playbox (@PLAYBOXES) {
 	my ($playbox_dir, $prefix) = split (/=/, $playbox, 2);
 	opendir PLAYBOX, $playbox_dir;
@@ -370,7 +382,7 @@ sub program_a_track {
 	    next unless /^\d/;
 	    my $filename = "$playbox_dir/$_";
 	    s/^/$prefix/;
-	    next unless (/^$tracknumber\D/ &&
+	    next unless (/^$tracknum\D/ &&
 			 (/\.(mp[23]|wav)$/i ||
 			  -r "$filename/current.mp3" ||
 			  (-l $filename && readlink($filename) =~ /^https?\:\/\//)));
@@ -378,57 +390,73 @@ sub program_a_track {
 	}
 	closedir PLAYBOX;
     }
-    if (!@matches) {
+    if (@matches == 0) {
 	print "\r                -- track $tracknumber doesn't exist; i'll ignore that --       \r";
+        return;
     }
-    else {
-	my $which_rand = int(rand(1+$#matches));
-	if (exists($last_rand{$tracknumber})
-	    && $last_rand{$tracknumber} == $which_rand) {
-	    $which_rand = ($which_rand + 1) % @matches;
-	}
-	$last_rand{$tracknumber} = $which_rand;
-	my $selected_file = $matches[$which_rand];
-
-	local $/ = undef;
-	my $time = $selected_file =~ /\.mp[23]$/i ? `@MPG123 -t -v -n 1 "$selected_file" 2>&1` : '';
-	if ($time =~ /.*[\[\+](?:(\d+):)?(\d+):(\d+)(?:\.(\d+))?[\]\s]/) {
-	    my ($hr, $min, $sec, $hsec) = ($1, $2, $3, $4);
-	    $min += $hr * 60;
-	    $sec ++;
-	    if ($sec >= 60) {
-		$min ++;
-		$sec -= 60;
-	    }
-	    $time = sprintf ("%d:%02d", $min, $sec);
-	    for $i (0..$#program_seconds_after) {
-		next if $program_seconds_after[$i] < 0;
-		$program_seconds_after[$i] += $min * 60 + $sec + $hsec / 100;
-	    }
-	} else {
-	    $time = "";
-	    for $i (0..$#program_seconds_after) {
-		$program_seconds_after[$i] = -1;
-	    }
-	}
-	push @program_seconds_after, 0;
-	push @program_track_time, $time;
-	push @program, $selected_file;
-	push @tracknumber, $tracknumber;
-	$program{$tracknumber} = 1;
-
-	$selected_file =~ s,.*/\d+\s*,,;
-	$selected_file =~ s,\.(\w+)$,,;
-	redraw_screen();
+    if (@matches > 1) {
+        my @best;
+        for my $filename (@matches) {
+            my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+                $atime,$mtime,$ctime,$blksize,$blocks)
+                = stat($filename);
+            next if defined($trackinode) && $trackinode != $ino;
+            next if defined($trackmtime) && $trackmtime != $mtime;
+            next if defined($trackbytes) && $trackbytes != $size;
+            push @best, $filename;
+        }
+        @matches = @best if @best == 1;
     }
-    $tracknumber = '';
-    $skip_frames_first_track = 0;
+    my $which = 0;
+    if (@matches > 1) {
+        $which = int(rand(1+$#matches));
+        if (exists($last_rand{$tracknum})
+            && $last_rand{$tracknum} == $matches[$which]) {
+            $which = ($which + 1) % @matches;
+        }
+    }
+    my $selected_file = $matches[$which];
+    $last_rand{$tracknum} = $selected_file;
+
+    if ($tracknum eq $tracknumber) {
+        my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+            $atime,$mtime,$ctime,$blksize,$blocks)
+            = stat($selected_file);
+        $tracknumber = "${tracknum}i${ino}";
+    }
+
+    local $/ = undef;
+    my $time = $selected_file =~ /\.mp[23]$/i ? `@MPG123 -t -v -n 1 "$selected_file" 2>&1` : '';
+    if ($time =~ /.*[\[\+](?:(\d+):)?(\d+):(\d+)(?:\.(\d+))?[\]\s]/) {
+        my ($hr, $min, $sec, $hsec) = ($1, $2, $3, $4);
+        $min += $hr * 60;
+        $sec ++;
+        if ($sec >= 60) {
+            $min ++;
+            $sec -= 60;
+        }
+        $time = sprintf ("%d:%02d", $min, $sec);
+        for $i (0..$#program_seconds_after) {
+            next if $program_seconds_after[$i] < 0;
+            $program_seconds_after[$i] += $min * 60 + $sec + $hsec / 100;
+        }
+    } else {
+        $time = "";
+        for $i (0..$#program_seconds_after) {
+            $program_seconds_after[$i] = -1;
+        }
+    }
+    push @program_seconds_after, 0;
+    push @program_track_time, $time;
+    push @program, $selected_file;
+    push @tracknumber, $tracknumber;
+    &redraw_screen();
 }
 
 sub save_program {
     my ($this_pgm_index, $skip_frames) = @_;
     if (defined ($this_pgm_index)) {
-	$saveprogram = join(",",@tracknumber[$this_pgm_index..$#tracknumber]);
+	$saveprogram = join(",", @tracknumber[$this_pgm_index..$#tracknumber]);
     } else {
 	$saveprogram = readlink("$ETC/cart/cron/0");
 	$saveprogram =~ s/-\d+//;
@@ -506,7 +534,8 @@ sub check_schedule {
 		}
 		foreach $tracknumber (split(/[ ,]+/, $tracknumbers)) {
 		    print $tracknumber;
-		    program_a_track();
+		    &program_a_track($tracknumber);
+		    $tracknumber = '';
 		}
 		$skip_frames_first_track = $skip_frames;
 		unlink $thelink;
