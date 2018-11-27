@@ -1,0 +1,6 @@
+DirectoryIndex index.cgi
+AuthName "paddy schedule"
+AuthUserFile /home/mp3trader/.htpasswd
+AuthGroupFile /dev/null
+AuthType Basic
+Require valid-user
