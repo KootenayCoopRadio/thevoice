@@ -301,7 +301,7 @@ sub clear_screen {
     $BANNERtime = time;
 
     @banner = split("\n", "
- \e[4mhow to use:                       \e[0m
+ \e[4mhow to use:                       \e[0m 
  1. CLEAR                           
  2. Type a track number, then ENTER 
  3. Another track number, and ENTER 
