@@ -4,6 +4,7 @@
 use lib '.';
 require 'track_info.pm';
 use CGI;
+$hostname = `hostname`;
 $q = new CGI ();
 print $q->header;
 
@@ -48,12 +49,12 @@ if ($currentschedule =~ /\S/) {
 }
 
 print <<EOF;
-<HTML><HEAD><TITLE>Paddy schedule</TITLE></HEAD>
+<HTML><HEAD><TITLE>$hostname schedule</TITLE></HEAD>
 <BODY bgcolor="#ffffff">
 
-<H3><A href="./">Paddy</A><BR>schedule</H3>
+<H3>$hostname<BR>schedule</H3>
 
-<P>You can program some tracks on Paddy, to play at a specific date
+<P>You can program some tracks on $hostname, to play at a specific date
 and time.
 
 <BLOCKQUOTE>
