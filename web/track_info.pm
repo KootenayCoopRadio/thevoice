@@ -2,7 +2,7 @@
 
 $ETC = $ENV{'ETC'} || '/etc';
 @PLAYBOXES = grep (/\S/, split (/\n/, `cat $ETC/cart/playboxes`));
-$MPG123 = $ENV{'MPG123'} || '/usr/local/bin/mpg123';
+chomp($MPG123 = $ENV{'MPG123'} || `which mpg123` || '/usr/local/bin/mpg123');
 
 sub track_info {
     my $tracknumber = shift @_;
@@ -36,10 +36,10 @@ sub track_info {
 	my $selected_file = $matches[$which_rand];
 
 	local $/ = undef;
-	my $time = $selected_file =~ /\.mp3$/i ? `$MPG123 -t -qvv -n 100 "$selected_file" 2>&1` : '';
-	if ($time =~ /.*\[((\d+):)?(\d+):(\d+)(\.(\d+))?\]/) {
-	    $m = $1*60 + $3;
-	    $s = $4 + $6/100;
+	my $time = $selected_file =~ /\.mp3$/i ? `$MPG123 -t -v -n 100 "$selected_file" 2>&1` : '';
+	if ($time =~ /.*[\[\+](?:(\d+):)?(\d+):(\d+)(?:\.(\d+))?[\]\s]/) {
+	    $m = $1*60 + $2;
+	    $s = $3 + $4/100;
 	    $time = sprintf ("%d:%02d", $m, $s);
 	    for $i (0..$#program_seconds_after) {
 		next if $program_seconds_after[$i] < 0;
