@@ -1,5 +1,6 @@
 #!/usr/bin/perl
 
+use lib '.';
 require 'track_info.pm';
 use CGI;
 $q = new CGI ();
