@@ -467,7 +467,7 @@ sub save_program {
     }
     if($skip_frames > 200) {
 	$skip_frames -= 200;
-	$saveprogram =~ s/^(\d+)/$1-$skip_frames/;
+	$saveprogram =~ s/^([^,]+)/$1-$skip_frames/;
     }
     unlink "$ETC/cart/cron/0tmp";
     if (symlink ($saveprogram,
