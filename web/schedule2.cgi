@@ -41,7 +41,7 @@ print $q->header;
 chomp($timestamp = `date -v${mday}d -v${month}m -v${year}y -v${hour}H -v${minute}M -v${second}S +%s`);
 
 chomp($nice_date = `date -j -r $timestamp`);
-@tracknumbers = split(/\D+/, $tracknumbers);
+@tracknumbers = split(/[^\dbim]+/, $tracknumbers);
 $html_tracknumbers = join(",", @tracknumbers);
 
 %program = ();
