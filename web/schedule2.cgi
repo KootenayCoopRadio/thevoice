@@ -49,17 +49,19 @@ if ($? == 0) {
 print $q->header;
 
 @tracknumbers = split(/[^\dbim]+/, $tracknumbers);
-$html_tracknumbers = join(",", @tracknumbers);
 
-%program = ();
+@tracks = ();
 @program = ();
 @program_seconds_after = ();
 @program_track_time = ();
+@program_track = ();
 $tracklist = '';
 $tracks = readlink "/etc/cart/cron/$_";
 foreach (@tracknumbers) {
     $tracklist .= track_info($_);
 }
+$html_tracknumbers = join(", ", @program_track);
+
 $totaltime = 0;
 foreach (@program_track_time) {
     my ($min, $sec) = /(\d*):(\d+)/;

@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+# -*- indent-tabs-mode: t; -*-
 
 use lib '.';
 require 'track_info.pm';
@@ -16,13 +17,13 @@ $currentschedule = "";
 opendir SCHED, "/etc/cart/cron/";
 foreach (sort readdir SCHED) {
     if (-l "/etc/cart/cron/$_" && !/\D/ && $_ > time - 1800) {
-	%program = ();
 	@program = ();
 	@program_seconds_after = ();
 	@program_track_time = ();
+	@program_track = ();
 	$tracklist = '';
 	$tracks = readlink "/etc/cart/cron/$_";
-	foreach (split(/,/, $tracks)) {
+	foreach (split(/[, ]+/, $tracks)) {
 	    $tracklist .= track_info($_);
 	}
 	$totaltime = 0;

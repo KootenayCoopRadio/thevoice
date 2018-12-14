@@ -1,11 +1,13 @@
 #!/usr/bin/perl
+# -*- indent-tabs-mode: t; -*-
 
 $ETC = $ENV{'ETC'} || '/etc';
 @PLAYBOXES = grep (/\S/, split (/\n/, `cat $ETC/cart/playboxes`));
 chomp($MPG123 = $ENV{'MPG123'} || `which mpg123` || '/usr/local/bin/mpg123');
 
 sub track_info {
-    my $tracknumber = shift @_;
+    my $track = shift @_;
+    my ($tracknumber, $inode) = $track =~ /^(\d+)(?:i(\d+))?/;
     my @matches;
     my $playbox_dir, $playbox;
     foreach $playbox (@PLAYBOXES) {
@@ -20,11 +22,22 @@ sub track_info {
 	}
 	closedir PLAYBOX;
     }
+    if (@matches > 1 && $inode > 0) {
+	my @best;
+	for my $fnm (@matches) {
+	    my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+		$atime,$mtime,$ctime,$blksize,$blocks)
+		= stat($fnm);
+	    if ($ino == $inode) {
+		push @best, $fnm;
+	    }
+	}
+	if (@best > 0) {
+	    @matches = @best;
+	}
+    }
     if (!@matches) {
 	return "[track $tracknumber doesn't exist; i'll ignore that]\n";
-    }
-    elsif (0 && exists $program{$tracknumber}) {
-	return "[you already programmed track $tracknumber; i'll ignore that]\n";
     }
     else {
 	my $which_rand = int(rand(1+$#matches));
@@ -34,6 +47,14 @@ sub track_info {
 	}
 	$last_rand{$tracknumber} = $which_rand;
 	my $selected_file = $matches[$which_rand];
+
+	if (!$inode) {
+	    my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+		$atime,$mtime,$ctime,$blksize,$blocks)
+		= stat($selected_file);
+	    $inode = $ino;
+	    $track = "${tracknumber}i${inode}";
+	}
 
 	local $/ = undef;
 	my $time = $selected_file =~ /\.mp3$/i ? `$MPG123 -t -v -n 100 "$selected_file" 2>&1` : '';
@@ -54,8 +75,7 @@ sub track_info {
 	push @program_seconds_after, 0;
 	push @program_track_time, $time;
 	push @program, $selected_file;
-	push @tracknumber, $tracknumber;
-	$program{$tracknumber} = 1;
+	push @program_track, $track;
 
 	$selected_file =~ s,.*/\d+\s*,,;
 	$selected_file =~ s,\.(\w+)$,,;
