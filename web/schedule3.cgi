@@ -8,6 +8,6 @@ $tracknumbers = $q->param('tracknumbers');
 
 symlink $tracknumbers, "/etc/cart/cron/$timestamp";
 
-print $q->redirect("http://$ENV{'SERVER_NAME'}/cart/schedule.cgi");
+print $q->redirect("schedule.cgi");
 
 1;
