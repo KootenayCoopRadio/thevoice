@@ -111,6 +111,9 @@ while (1) {
 		    next if $program_seconds_after[0] < 0;
 		    if ($key eq "\r") {
 			my ($framenumber) = $status =~ /frame\#\s*(\d+)/i;
+			if (!defined $framenumber) {
+			    ($framenumber) = $status =~ /^> (\d+)\+\d+/;
+			}
 			if (defined ($framenumber)) {
 			    &save_program (undef, $framenumber);
 			}
