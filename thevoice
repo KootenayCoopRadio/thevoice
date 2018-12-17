@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 # -*- indent-tabs-mode: t; -*-
 
+$AMIXER=$ENV{'AMIXER'} || `which amixer 2>/dev/null`;
 $AUMIX=$ENV{'AUMIX'} || 'aumix';
 $MPG123=$ENV{'MPG123'} || 'mpg123';
 $WAVPLAY=$ENV{'WAVPLAY'} || 'esdplay';
@@ -191,7 +192,9 @@ while (1) {
 		&save_program ($this_pgm_index);
 
 		$looping = 1 if /\(loop\)\./;
-		if (/\(.*volume=(\d+).*\)/) {
+		if ($AMIXER) {
+		    system ($AMIXER, "-q", "sset", "PCM", "100%");
+		} elsif (/\(.*volume=(\d+).*\)/) {
 		    system ($AUMIX, "-v", 100, "-w", $1);
 		} else {
 		    system ($AUMIX, qw(-v 70 -w 100));
@@ -291,10 +294,18 @@ sub clear_program {
 }
 
 sub fadeout {
-    $volume = (split(' ',`$AUMIX -v q`))[-1];
-    for ($v = $volume; $v > 0; $v--) {
-	system ($AUMIX, '-v', $v);
-	select (undef, undef, undef, 0.1);
+    if ($AMIXER) {
+	($volume) = `$AMIXER sget PCM` =~ /\[(\d+)%\]/;
+	for ($v = $volume; $v > 0; $v--) {
+	    system ($AMIXER, "-q", "sset", "PCM", "${v}%");
+	    select (undef, undef, undef, 0.1);
+	}
+    } else {
+	$volume = (split(' ',`$AUMIX -v q`))[-1];
+	for ($v = $volume; $v > 0; $v--) {
+	    system ($AUMIX, '-v', $v);
+	    select (undef, undef, undef, 0.1);
+	}
     }
 }
 
