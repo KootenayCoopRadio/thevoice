@@ -5,23 +5,25 @@ $ETC = $ENV{'ETC'} || '/etc';
 @PLAYBOXES = grep (/\S/, split (/\n/, `cat $ETC/cart/playboxes`));
 chomp($MPG123 = $ENV{'MPG123'} || `which mpg123` || '/usr/local/bin/mpg123');
 
-sub track_info {
-    my $track = shift @_;
-    my ($tracknumber, $inode) = $track =~ /^(\d+)(?:i(\d+))?/;
-    my @matches;
+if (!%tracks) {
+    %tracks = ();
     my $playbox_dir, $playbox;
     foreach $playbox (@PLAYBOXES) {
 	my ($playbox_dir, $prefix) = split (/=/, $playbox, 2);
 	opendir PLAYBOX, $playbox_dir;
 	while (defined ($_ = readdir PLAYBOX)) {
-	    next unless /^\d/;
-	    my $filename = "$playbox_dir/$_";
-	    s/^/$prefix/;
-	    next unless /^$tracknumber\D/ && /\.(mp3|wav)$/i;
-	    push @matches, $filename;
+	    next unless /^(\d+)/;
+	    $tracks{"${prefix}${1}"} ||= [];
+	    push @{$tracks{"${prefix}${1}"}}, "$playbox_dir/$_";
 	}
 	closedir PLAYBOX;
     }
+}
+
+sub track_info {
+    my $track = shift @_;
+    my ($tracknumber, $inode) = $track =~ /^(\d+)(?:i(\d+))?/;
+    my @matches = @{$tracks{$tracknumber}};
     if (@matches > 1 && $inode > 0) {
 	my @best;
 	for my $fnm (@matches) {
