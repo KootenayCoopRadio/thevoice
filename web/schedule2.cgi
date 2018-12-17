@@ -3,7 +3,7 @@
 use lib '.';
 require 'track_info.pm';
 use CGI;
-$hostname = `hostname`;
+chomp($hostname = `hostname`);
 $q = new CGI ();
 
 $date = $q->param('date');
@@ -73,7 +73,11 @@ $nice_tracknumbers = $q->escapeHTML($tracklist);
 $nice_tracknumbers .= sprintf("Total %4d:%02d", int($totaltime/60), int($totaltime)%60);
 
 print <<EOF;
-<HTML><HEAD><TITLE>$hostname schedule</TITLE></HEAD>
+<HTML>
+<HEAD>
+    <TITLE>$hostname schedule</TITLE>
+    <LINK rel="icon" type="image/png" href="/favicon.png" />
+</HEAD>
 <BODY bgcolor="#ffffff">
 
 <H3>$hostname<BR><A href="schedule.cgi">schedule</A><BR>confirm</H3>

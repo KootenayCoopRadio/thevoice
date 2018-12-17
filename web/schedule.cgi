@@ -4,7 +4,7 @@
 use lib '.';
 require 'track_info.pm';
 use CGI;
-$hostname = `hostname`;
+chomp($hostname = `hostname`);
 $q = new CGI ();
 print $q->header;
 
@@ -49,7 +49,11 @@ if ($currentschedule =~ /\S/) {
 }
 
 print <<EOF;
-<HTML><HEAD><TITLE>$hostname schedule</TITLE></HEAD>
+<HTML>
+<HEAD>
+    <TITLE>$hostname schedule</TITLE>
+    <LINK rel="icon" type="image/png" href="/favicon.png" />
+</HEAD>
 <BODY bgcolor="#ffffff">
 
 <H3>$hostname<BR>schedule</H3>
