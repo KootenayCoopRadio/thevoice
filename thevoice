@@ -314,7 +314,7 @@ sub clear_screen {
 	if ($BANNER =~ /\S/ && time - $BANNERtime < 30);
     $BANNERtime = time;
 
-    @banner = split("\n", "
+    @banner = split("\n", "                                    
  \e[4mhow to use:                       \e[0m 
  1. CLEAR                           
  2. Type a track number, then ENTER 
