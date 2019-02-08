@@ -56,6 +56,8 @@ print <<EOF;
 </HEAD>
 <BODY bgcolor="#ffffff">
 
+<A href="screenshot.cgi"><IMG style="float: right; max-width: 300px; max-height: 200px;" src="screenshot.cgi" /></A>
+
 <H3>$hostname<BR>schedule</H3>
 
 <P>You can program some tracks on $hostname, to play at a specific date
