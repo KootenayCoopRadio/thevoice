@@ -360,7 +360,7 @@ sub redraw_screen {
 sub cjlystandardtime {
     my $displaytime = POSIX::strftime("%a %b %d  %I:%M:%S %p", localtime);
     $displaytime =~ s/ 0/ /g;
-    $displaytime =~ s/0/o/g;
+    $displaytime =~ s/0/O/g;
     $displaytime =~ tr/A-Z/a-z/;
     $row = $screen_height - ((localtime)[1]%2);
 
