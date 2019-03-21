@@ -7,7 +7,7 @@ local @PLAYBOXES = grep (/\S/, split (/\n/, `cat $ETC/cart/playboxes`));
 $am = "am";
 $am = "pm" if $h >= 12;
 $h -= 12 if $h > 12;
-$m = "0$h" if $m < 10;
+$m = "0$m" if $m < 10;
 local @month_abbrev = qw(jan feb mar apr may jun jul aug sep oct nov dec);
 
 foreach $playbox (@PLAYBOXES) {
