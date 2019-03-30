@@ -3,11 +3,12 @@
 $ETC=$ENV{'ETC'} || '/etc';
 local @PLAYBOXES = grep (/\S/, split (/\n/, `cat $ETC/cart/playboxes`));
 
-($s, $m, $h, $thisday, $thismonth) = localtime;
+($s, $m, $h, $thisday, $thismonth, $thisyear) = localtime;
 $am = "am";
 $am = "pm" if $h >= 12;
 $h -= 12 if $h > 12;
 $m = "0$m" if $m < 10;
+$thisyear += 1900;
 local @month_abbrev = qw(jan feb mar apr may jun jul aug sep oct nov dec);
 
 foreach $playbox (@PLAYBOXES) {
@@ -19,6 +20,7 @@ foreach $playbox (@PLAYBOXES) {
         s/^/$prefix/;
         next unless /^(\d+)\D/ && s/\.(mp3|wav)$//i;
         next unless /($month_abbrev[$thismonth])\S*(\s*\d+\s*and)?\s*$thisday\b/i;
+        next if !/$thisyear/ && /\s.*(20\d\d)\b/ && $1 < $thisyear;
         push @today, $_;
     }
     closedir PLAYBOX;
