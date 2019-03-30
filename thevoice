@@ -19,6 +19,7 @@ local ($screen_avail) = $screen_height - 12;
 
 @MPG123 = split (/\s+/, $MPG123);
 
+syslog ("start");
 chomp ($stty = `stty -g`);
 system "stty", "-echo", "-icanon", "eol", "\001";
 select STDERR; $| = 1;
@@ -202,17 +203,21 @@ while (1) {
 
 		if (/\.mp[23]$/i) {
 		    $skip_frames_first_track += 0;
-		    print "[skipping $skip_frames_first_track frames]\n" if $DEBUG && $skip_frames_first_track > 0;
+		    syslog ("play", "skip=$skip_frames_first_track", "file=$_");
 		    system (@MPG123, "-k", $skip_frames_first_track, "-v", $_);
 		    $skip_frames_first_track = 0;
 		    $status = $? / 256; #/;#emacs-parse-fail#
 		    print "(status = $status)\n" if $status;
 		} elsif (/\.wav$/i) {
+		    syslog ("play", "file=$_");
 		    system $WAVPLAY, $_;
 		} elsif (-r "$_/current.mp3") {
+		    syslog ("play", "mp3dir=$_");
 		    system (qq{mp3cat "$_" - | @MPG123 -v -});
 		} elsif (-l ($_) && readlink($_) =~ /^https?\:\/\//) {
-		    system (qq{@MPG123 -v }.readlink($_));
+		    my $url = readlink($_);
+		    syslog ("play", "url=$url");
+		    system (@MPG123, "-v", $url);
 		} else {
 		    print STDERR
 			"Aaah! This isn't a WAV or MP3: $_\n";
@@ -276,7 +281,14 @@ while (1) {
 }
 system ('stty', $stty);
 
+sub syslog {
+    open (L, "|systemd-cat --identifier=thevoice");
+    print L ("@_\n");
+    close L;
+}
+
 sub stop {
+    syslog ("stop");
     kill 1, map ($_, keys %living_children);
     %living_children = ();
     system "killall $KILLPROCS 2>/dev/null";
@@ -294,6 +306,7 @@ sub clear_program {
 }
 
 sub fadeout {
+    syslog ("fadeout");
     if ($AMIXER) {
 	($volume) = `$AMIXER sget PCM` =~ /\[(\d+)%\]/;
 	for ($v = $volume; $v > 0; $v--) {
