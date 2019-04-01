@@ -544,6 +544,7 @@ sub check_schedule {
 	       &&
 	       $_ <= time) {
 		my $tracknumbers = readlink $thelink;
+		syslog ("schedule t=$_ program=$tracknumbers");
 		if (%living_children) {
 		    fadeout();
 		}
