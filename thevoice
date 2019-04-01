@@ -288,6 +288,7 @@ sub syslog {
 }
 
 sub stop {
+    return if %living_children == 0;
     syslog ("stop");
     kill 1, map ($_, keys %living_children);
     %living_children = ();
