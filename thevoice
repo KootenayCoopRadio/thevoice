@@ -564,8 +564,8 @@ sub check_schedule {
 		foreach $tracknumber (split(/[ ,]+/, $tracknumbers)) {
 		    print $tracknumber;
 		    &program_a_track($tracknumber);
-		    $tracknumber = '';
 		}
+		$tracknumber = '';
 		$skip_frames_first_track = $skip_frames;
 		unlink $thelink;
 		$key = "\r";
