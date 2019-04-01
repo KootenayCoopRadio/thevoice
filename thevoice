@@ -100,6 +100,7 @@ while (1) {
 		unshift @program_seconds_after, 0;
 		$current_pgm_index = -1;
 		my $status = '';
+		my $lastinfo = '';
 		while (defined ($key = getc STDIN)) {
 		    $status .= $key;
 		    if ($key eq "\n") {
@@ -170,7 +171,10 @@ while (1) {
 				 ($program[$#program] =~ /\(loop\)\./) ? "before I loop" : "");
 			    $|=0;
 			    $info .= "\n\n".$main::warning if $main::warning;
-			    print (clear_screen() . $info);
+			    if ($info ne $lastinfo) {
+				print (clear_screen() . $info);
+				$lastinfo = $info;
+			    }
 			    $|=1;
 			}
 			$status = '';
