@@ -58,10 +58,13 @@ print <<EOF;
 
 <A href="screenshot.cgi"><IMG style="float: right; max-width: 300px; max-height: 200px;" src="screenshot.cgi" /></A>
 
-<H3>$hostname<BR>schedule</H3>
+<H3>$hostname</H3>
 
-<P>You can program some tracks on $hostname, to play at a specific date
-and time.
+<P><B>Journal:</B> You can <A href="journal.cgi">download the
+journal</A> of recently played tracks.
+
+<P><B>Schedule:</B> You can program some tracks on $hostname, to play
+at a specific date and time.
 
 <BLOCKQUOTE>
 

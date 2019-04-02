@@ -80,7 +80,7 @@ print <<EOF;
 </HEAD>
 <BODY bgcolor="#ffffff">
 
-<H3>$hostname<BR><A href="schedule.cgi">schedule</A><BR>confirm</H3>
+<H3><A href="schedule.cgi">$hostname</A> &rarr; confirm schedule</H3>
 
 <P>Please confirm your reservation.
 
