@@ -7,7 +7,7 @@ chomp($MPG123 = $ENV{'MPG123'} || `which mpg123` || '/usr/local/bin/mpg123');
 
 if (!%tracks) {
     %tracks = ();
-    my $playbox_dir, $playbox;
+    my ($playbox_dir, $playbox);
     foreach $playbox (@PLAYBOXES) {
 	my ($playbox_dir, $prefix) = split (/=/, $playbox, 2);
 	opendir PLAYBOX, $playbox_dir;
