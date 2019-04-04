@@ -70,6 +70,9 @@ while (1) {
 
     &check_schedule();
 
+    if ($key !~ /\d/) {
+	$entered_stop_code = '';
+    }
     if ($key eq "+") {
 	next if %living_children;
 	if (!%living_children && length($tracknumber)) {
@@ -82,7 +85,6 @@ while (1) {
 	&program_a_track($tracknumber) if !%living_children && length($tracknumber);
 	$tracknumber = '';
 	next if ! @program;
-	$entered_stop_code = '';
 	print "\n";
 	print "\n                About to start playing -- wait a moment";
 	local $child = fork();
