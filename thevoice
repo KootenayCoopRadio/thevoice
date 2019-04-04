@@ -444,7 +444,7 @@ sub program_a_track {
     if (@matches > 1) {
         $which = int(rand(1+$#matches));
         if (exists($last_rand{$tracknum})
-            && $last_rand{$tracknum} == $matches[$which]) {
+            && $last_rand{$tracknum} eq $matches[$which]) {
             $which = ($which + 1) % @matches;
         }
     }
