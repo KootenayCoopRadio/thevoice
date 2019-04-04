@@ -396,8 +396,8 @@ sub cjlystandardtime {
 sub program_a_track {
     my $tracknumber = shift;
     my @matches;
-    my $playbox_dir, $playbox;
-    my $trackbytes, $trackmtime, $trackinode;
+    my ($playbox_dir, $playbox);
+    my ($trackbytes, $trackmtime, $trackinode);
     my $tracknum = $tracknumber;
     if ($tracknum =~ s/b(\d+)//) {
         $trackbytes = $1;
